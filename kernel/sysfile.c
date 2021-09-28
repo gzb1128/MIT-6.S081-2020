@@ -484,3 +484,29 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_trace(void)
+{
+  struct proc *p = myproc();
+  p -> mask  = p->trapframe->a0;
+  return 0;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  struct proc *p;
+  uint64 adrs;
+  p=myproc();
+//  printf("%d\n%d\n",get_freepage_num(),get_proc_num());
+  if(argaddr(0,&adrs)<0)
+    return -1;
+  uint64 num[2];
+  num[0]=get_freepage_num()*PGSIZE;
+//  num[0]=133128192;
+  num[1]=get_proc_num();
+  if(copyout(p->pagetable,adrs,(char *)num,sizeof(num))<0)
+  return -1;
+  return 0;
+}
