@@ -160,12 +160,35 @@ kerneltrap()
 }
 
 void
+proctimer_check()
+{
+  struct proc *p;
+  p=myproc();
+  if(!p) return;
+  
+  acquire(&p->lock);
+  if((p->state)==RUNNING)
+  {
+    if(p->timer)
+    ++(p->consumer);
+    if((p->consumer)==(p->timer))
+    {
+      (*(p->handler))();
+      (p->consumer)=0;
+    }
+  }
+  release(&p->lock);
+}
+
+void
 clockintr()
 {
   acquire(&tickslock);
   ticks++;
   wakeup(&ticks);
   release(&tickslock);
+
+  proctimer_check();
 }
 
 // check if it's an external interrupt or software interrupt,
