@@ -485,16 +485,19 @@ sys_pipe(void)
   return 0;
 }
 
+
 uint64
 sys_sigalarm(void)
 {
   struct proc *p;
   int a0;
-  void (*a1)();
+  uint64 a1;
   p=myproc();
   if(!p) return 1;
-  argint(1,&a0);
-  argaddr(2,(uint64 *)(&a1));
+  if(argint(0,&a0)<0)
+    return -1;
+  if(argaddr(1,&a1)<0)
+    return -1;
   if(!a0)
   {
     (p->timer)=(p->consumer)=0;
@@ -503,5 +506,15 @@ sys_sigalarm(void)
   (p->handler)=a1;
   (p->timer)=a0;
   (p->consumer)=0;
+  return 0;
+}
+
+uint64
+sys_sigreturn(void)
+{
+  struct proc *p;
+  p=myproc();
+  memmove((p->trapframe),(p->saverTrapFrame),sizeof(struct trapframe));
+  p->consumer=0;
   return 0;
 }

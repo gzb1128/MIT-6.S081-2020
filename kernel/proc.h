@@ -103,6 +103,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  
   int timer,consumer;          // time to send alarm
-  void (*handler)();
+  uint64 handler;
+  struct trapframe *saverTrapFrame; // data page for trampoline.S
 };

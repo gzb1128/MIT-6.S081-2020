@@ -78,8 +78,17 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
+  {
+    if(p->timer)
+    {
+      if(++(p->consumer)==(p->timer))
+      {
+        memmove((p->saverTrapFrame),(p->trapframe),sizeof(struct trapframe));
+        p->trapframe->epc=p->handler;
+      }
+    }
     yield();
-
+  }
   usertrapret();
 }
 
@@ -159,6 +168,7 @@ kerneltrap()
   w_sstatus(sstatus);
 }
 
+/*
 void
 proctimer_check()
 {
@@ -178,7 +188,7 @@ proctimer_check()
     }
   }
   release(&p->lock);
-}
+}*/
 
 void
 clockintr()
@@ -188,7 +198,7 @@ clockintr()
   wakeup(&ticks);
   release(&tickslock);
 
-  proctimer_check();
+//  proctimer_check();
 }
 
 // check if it's an external interrupt or software interrupt,
