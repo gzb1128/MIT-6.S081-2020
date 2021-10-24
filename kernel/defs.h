@@ -63,6 +63,8 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+uint64 addRefCount(uint64 pa);
+uint64 delRefCount(uint64 pa);
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -154,6 +156,7 @@ void            uartputc_sync(int);
 int             uartgetc(void);
 
 // vm.c
+int cowHandler(pagetable_t pagetable,uint64 va);
 void            kvminit(void);
 void            kvminithart(void);
 uint64          kvmpa(uint64);

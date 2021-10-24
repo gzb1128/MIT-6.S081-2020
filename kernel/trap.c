@@ -67,7 +67,25 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  } else if(r_scause()==13||r_scause()==15)
+  {
+//    panic("trap.c");
+    uint64 va=r_stval();
+//    if(va>=p->sz || va<PGROUNDDOWN(p->trapframe->sp))
+    if(va >= MAXVA)
+    {
+    //  panic("trap.c invalid addr");
+      p->killed=1;
+      exit(-1);
+    }
+    if(cowHandler(p->pagetable,va)<=0)
+    {
+    //  panic("trap.c cow");
+      p->killed=1;
+      exit(-1);
+    }
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
