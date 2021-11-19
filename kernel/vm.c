@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -45,6 +47,45 @@ kvminit()
   // map the trampoline for trap entry/exit to
   // the highest virtual address in the kernel.
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+}
+
+int
+ukvmmap(uint64 va, uint64 pa, uint64 sz, int perm,pagetable_t pagetable)
+{
+  if(mappages(pagetable, va, sz, pa, perm) != 0)
+    return -1;
+  return 0;
+}
+
+void
+ukvminit(struct proc *p)
+{
+  p->kernelPagetable = (pagetable_t) kalloc();
+  if(p->kernelPagetable == 0)
+    return;
+  memset(p->kernelPagetable, 0, PGSIZE);
+
+  // uart registers
+  ukvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W,p->kernelPagetable);
+
+  // virtio mmio disk interface
+  ukvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W,p->kernelPagetable);
+
+  // CLINT
+//  ukvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W,p->kernelPagetable);
+
+  // PLIC
+  ukvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W,p->kernelPagetable);
+
+  // map kernel text executable and read-only.
+  ukvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X,p->kernelPagetable);
+
+  // map kernel data and the physical RAM we'll make use of.
+  ukvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W,p->kernelPagetable);
+
+  // map the trampoline for trap entry/exit to
+  // the highest virtual address in the kernel.
+  ukvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X,p->kernelPagetable);
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -463,4 +504,21 @@ int vmprint(pagetable_t pagetable)
   printf("page table %p\n",pagetable);
   mywalk(pagetable,1);
   return 1;
+}
+
+
+void
+proc_freewalk(pagetable_t pagetable)
+{
+  // there are 2^9 = 512 PTEs in a page table.
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      proc_freewalk((pagetable_t)child);
+      pagetable[i] = 0;
+    }
+  }
+  kfree((void*)pagetable);
 }

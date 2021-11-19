@@ -159,6 +159,9 @@ int             uartgetc(void);
 
 // vm.c
 void            kvminit(void);
+void            ukvminit(struct proc *);
+int             ukvmmap(uint64, uint64, uint64, int,pagetable_t);
+void            proc_freewalk(pagetable_t);
 void            kvminithart(void);
 int             vmprint(pagetable_t);
 uint64          kvmpa(uint64);

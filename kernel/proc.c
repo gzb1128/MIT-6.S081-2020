@@ -39,6 +39,7 @@ procinit(void)
         panic("kalloc");
       uint64 va = KSTACK((int) (p - proc));
       kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+      p->kstackpa = (uint64)pa;
       p->kstack = va;
   }
   kvminithart();
@@ -106,7 +107,7 @@ allocproc(void)
 
 found:
   p->pid = allocpid();
-
+  
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     release(&p->lock);
@@ -116,6 +117,19 @@ found:
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  ukvminit(p);
+  if(p->kernelPagetable==0)
+  {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  if(ukvmmap(p->kstack, p->kstackpa, PGSIZE, PTE_R | PTE_W,p->kernelPagetable)<0)
+  {
     freeproc(p);
     release(&p->lock);
     return 0;
@@ -141,7 +155,10 @@ freeproc(struct proc *p)
   p->trapframe = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
+  if(p->kernelPagetable)
+    proc_freewalk(p->kernelPagetable);
   p->pagetable = 0;
+  p->kernelPagetable = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -473,7 +490,11 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+
+        w_satp(MAKE_SATP(p->kernelPagetable));
+        sfence_vma();
         swtch(&c->context, &p->context);
+        kvminithart();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
