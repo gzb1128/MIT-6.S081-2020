@@ -158,6 +158,8 @@ void            uartputc_sync(int);
 int             uartgetc(void);
 
 // vm.c
+int             kvmcopy(pagetable_t, pagetable_t, uint64, uint64);
+uint64          kvmdealloc(pagetable_t, uint64, uint64);
 void            kvminit(void);
 void            ukvminit(struct proc *);
 int             ukvmmap(uint64, uint64, uint64, int,pagetable_t);
@@ -168,7 +170,7 @@ uint64          kvmpa(uint64);
 void            kvmmap(uint64, uint64, uint64, int);
 int             mappages(pagetable_t, uint64, uint64, uint64, int);
 pagetable_t     uvmcreate(void);
-void            uvminit(pagetable_t, uchar *, uint);
+void            uvminit(struct proc *, uchar *, uint);
 uint64          uvmalloc(pagetable_t, uint64, uint64);
 uint64          uvmdealloc(pagetable_t, uint64, uint64);
 #ifdef SOL_COW
@@ -197,6 +199,10 @@ void            virtio_disk_intr(void);
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
 
+//vmcopyin.c
+int             statscopyin(char *buf, int sz);
+int             copyin_new(pagetable_t, char *, uint64, uint64);
+int             copyinstr_new(pagetable_t, char *, uint64, uint64);
 
 
 // stats.c

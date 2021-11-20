@@ -111,6 +111,15 @@ exec(char *path, char **argv)
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
+  //because process kernelpagetable only "map" pa,not "create"
+  //so we can't delete pa that mapped which uvmdealloc does
+  //that cause pa venish and later free oldpagetable process panic
+  //we do only unmap instead
+//  uvmdealloc(p->kernelPagetable,p->sz,0);
+  kvmdealloc(p->kernelPagetable, p->sz, 0);
+  if(kvmcopy(p->pagetable, p->kernelPagetable, 0, sz)<0)
+    goto bad;
+
   p->sz = sz;
   p->trapframe->epc = elf.entry;  // initial program counter = main
   p->trapframe->sp = sp; // initial stack pointer
