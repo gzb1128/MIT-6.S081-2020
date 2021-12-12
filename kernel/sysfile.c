@@ -484,3 +484,101 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void)
+{
+  int length,prot,flags,fd;
+  if(argint(1,&length)<0 || argint(2,&prot)<0 || argint(3,&flags)<0 || argint(4,&fd)<0)
+    return -1;
+  struct proc *p=myproc();
+  if(!p->ofile[fd]->writable&&prot&PROT_WRITE&&flags&MAP_SHARED)
+    return -1;
+  struct vma *vma;
+  int i;
+  for(i=0;i<vmaSize;++i)
+  if(!p->vma[i].valid)
+  {
+    vma=&p->vma[i];
+
+    vma->valid=1;
+    vma->addr=vma->oaddr=PGROUNDUP(p->sz);
+    length=PGROUNDUP(length);
+    p->sz=vma->addr+length;
+    vma->length=length;
+    vma->prot=prot;
+    vma->flags=flags;
+    vma->file=p->ofile[fd];
+    filedup(vma->file);
+    //offset is always zero;
+    return vma->addr;
+  }
+  if(i==vmaSize)
+    return 0xffffffffffffffff;
+  return -1;
+}
+int fileFlush(uint64 addr,struct file *f,int n,uint64 offset)
+{
+  int r;
+  if(f->writable == 0)
+    return -1;
+  //must be FD_INODE
+  int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
+  int i = 0;
+  while(i < n){
+    int n1 = n - i;
+    if(n1 > max)
+      n1 = max;
+    begin_op();
+    ilock(f->ip);
+    if ((r = writei(f->ip, 1, addr + i, offset, n1)) > 0)
+      offset += r;
+    iunlock(f->ip);
+    end_op();
+
+    if(r != n1){
+      // error from writei
+      break;
+    }
+    i += r;
+  }
+  return 0;
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  int length;
+  if(argaddr(0,&addr)<0 || argint(1,&length)<0)
+    return -1;
+  int mark=0;
+  struct proc *p=myproc();
+
+  for(int i=0;i<vmaSize;++i)
+  {
+    struct vma *vma=&p->vma[i];
+    if(addr<vma->addr||addr>=vma->addr+vma->length)
+      continue;
+    if(addr==vma->addr)//from the start
+    {
+      if(length>=vma->length)//release all
+      {
+        length=vma->length;
+        vma->valid=0;
+        mark=1;//mark to close fd
+      }
+      else
+        vma->addr+=length;
+    }
+    int npages=(PGROUNDDOWN(addr+length)-PGROUNDDOWN(addr))/PGSIZE;
+    vma->length-=length;
+    if(vma->flags&MAP_SHARED)
+      fileFlush(addr,vma->file,length,addr-vma->oaddr);
+    uvmunmap(p->pagetable,PGROUNDDOWN(addr),npages,0);
+    if(mark)//write first and close next, or file->ref==0 get wrong
+      fileclose(vma->file);
+    return 0;
+  }
+  return -1;//first lab
+}

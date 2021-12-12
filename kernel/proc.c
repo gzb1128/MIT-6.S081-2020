@@ -273,6 +273,17 @@ fork(void)
   if((np = allocproc()) == 0){
     return -1;
   }
+  for(int i=0;i<vmaSize;++i)
+  {
+    struct vma *vma,*nvma;
+    vma=&p->vma[i];
+    nvma=&np->vma[i];
+    if(vma->valid)
+    {
+      memmove(nvma,vma,sizeof(struct vma));
+      filedup(vma->file);
+    }
+  }
 
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
@@ -350,6 +361,15 @@ exit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+    }
+  }
+  for(int i=0;i<vmaSize;++i)
+  {
+    struct vma *vma=&p->vma[i];
+    if(vma->valid)
+    {
+      uvmunmap(p->pagetable,vma->addr,vma->length/PGSIZE,0);
+      memset(vma,0,sizeof(struct vma));
     }
   }
 

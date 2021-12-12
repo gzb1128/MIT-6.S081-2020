@@ -3,6 +3,9 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 #include "proc.h"
 #include "defs.h"
 
@@ -67,7 +70,51 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
-  } else {
+  }
+  else if(r_scause()==13||r_scause()==15)
+  {
+    int va=r_stval();
+    if(va>=p->sz || va<PGROUNDDOWN(p->trapframe->sp))
+    {
+      p->killed=1;
+      exit(-1);
+    }
+    struct proc *p=myproc();
+    int mark=0;
+    for(int i=0;i<vmaSize;++i)
+    {
+      struct vma *vma=&p->vma[i];
+      if(!vma->valid||vma->oaddr>va||va>=vma->oaddr+vma->length)//zuo bi you kai
+        continue;
+      mark=1;
+
+      pagetable_t pagetable=p->pagetable;
+      char *mem;
+      va = PGROUNDDOWN(va);
+      uint offset=va-vma->oaddr;
+      if(!(mem = kalloc()))
+      {
+        p->killed=1;
+        exit(-1);
+      }
+      memset(mem, 0, PGSIZE);
+      if(mappages(pagetable, va, PGSIZE, (uint64)mem, (vma->prot<<1)|PTE_U) != 0)
+      {
+        kfree(mem);
+        p->killed=1;
+        exit(-1);
+      }
+      ilock(vma->file->ip);
+	    readi(vma->file->ip,1,va,offset,PGSIZE);
+	    iunlock(vma->file->ip);
+    }
+    if(!mark)
+    {
+      p->killed=1;
+      exit(-1);
+    }
+  }
+  else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;

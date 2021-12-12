@@ -1,0 +1,8 @@
+{
+    "C_Cpp.errorSquiggles": "Enabled",
+    "files.associations": {
+        "defs.h": "c",
+        "proc.h": "c",
+        "cstdlib": "c"
+    }
+}
